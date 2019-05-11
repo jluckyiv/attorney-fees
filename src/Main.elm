@@ -3,8 +3,10 @@ module Main exposing (Model, Msg(..), init, main, update, view)
 import AttorneyFees
 import Browser
 import Browser.Dom as Dom
-import Html exposing (Html, button, div, form, h1, h2, h3, input, p, span, text)
-import Html.Attributes exposing (id, value)
+import Bulma.Classes as Bu
+import FontAwesome as Fa
+import Html exposing (Html, button, div, form, h1, h2, h3, input, label, p, section, span, text)
+import Html.Attributes exposing (class, id, placeholder, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Money
 import Task
@@ -71,15 +73,50 @@ view model =
                 |> AttorneyFees.fromJudgmentAmount
     in
     div []
-        [ h1 [] [ text "Default Judgment Attorney Fees" ]
-        , p [] [ text "Calculated per Riverside Superior Court Local Rule 3190 (Rev. 1-1-12)" ]
-        , form [ onSubmit Clear ]
-            [ span [] [ text "$ " ]
-            , input [ id "input", onInput UpdatedJudgmentAmount, value value_ ] []
-            , button [ onClick Clear ] [ text "Clear" ]
+        [ section [ class Bu.hero, class Bu.isInfo ]
+            [ div [ class Bu.heroBody ]
+                [ div [ class Bu.container ]
+                    [ h1 [ class Bu.title ] [ text "Default Judgment Attorney Fees" ]
+                    , h2 [ class Bu.subtitle ] [ text "Calculated per Riverside Superior Court Local Rule 3190 (Rev. 1-1-12)" ]
+                    ]
+                ]
             ]
-        , h3 [] [ text "Press [Enter] to clear" ]
-        , h2 [] [ text ("Attorney fees = $" ++ Money.format fees) ]
+        , section [ class Bu.section ]
+            [ div [ class Bu.container ]
+                [ form [ onSubmit Clear ]
+                    [ div
+                        [ class Bu.field
+                        , class Bu.hasAddons
+                        ]
+                        [ div
+                            [ class Bu.control
+                            , class Bu.hasIconsLeft
+                            ]
+                            [ input
+                                [ id "input"
+                                , class Bu.input
+                                , onInput UpdatedJudgmentAmount
+                                , placeholder "Judgment amount"
+                                , value value_
+                                ]
+                                []
+                            , span [ class Bu.icon, class Bu.isSmall, class Bu.isLeft ]
+                                [ Fa.icon Fa.dollarSign ]
+                            ]
+                        , div [ class Bu.control ]
+                            [ button [ class Bu.isLink, class Bu.button, onClick Clear ] [ text "Clear" ] ]
+                        ]
+                    , if model.judgmentAmount == "" then
+                        p [ class Bu.isLink, class Bu.help ] [ text "Fees will update automatically" ]
+
+                      else
+                        p [ class Bu.isLink, class Bu.help ] [ text "Press [Enter] to clear" ]
+                    ]
+                ]
+            , div [ class Bu.container ]
+                [ h2 [ class Bu.subtitle ] [ text ("Attorney fees = $" ++ Money.format fees) ]
+                ]
+            ]
         ]
 
 
