@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "create-elm-app",
+  "name": "attorney-fees",
   "builds": [
     {
       "src": "package.json",
