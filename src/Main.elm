@@ -6,7 +6,7 @@ import Browser.Dom as Dom
 import Bulma.Classes as Bu
 import FontAwesome as Fa
 import Html exposing (Html, button, div, form, h1, h2, h3, input, label, p, section, span, text)
-import Html.Attributes exposing (class, id, placeholder, value)
+import Html.Attributes exposing (class, id, placeholder, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Money
 import Task
@@ -17,12 +17,14 @@ import Task
 
 
 type alias Model =
-    { judgmentAmount : String }
+    { current : String
+    , previous : String
+    }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model "", focus )
+    ( Model "" "", focus )
 
 
 
@@ -42,15 +44,24 @@ update msg model =
             ( model, Cmd.none )
 
         Clear ->
-            ( { model | judgmentAmount = "" }, focus )
+            ( clear model, focus )
 
         UpdatedJudgmentAmount string ->
-            ( { model | judgmentAmount = string }, Cmd.none )
+            ( { model | current = string }, Cmd.none )
 
 
 focus : Cmd Msg
 focus =
     Task.attempt (\_ -> Ignored) (Dom.focus "input")
+
+
+clear : Model -> Model
+clear model =
+    if model.current == "" then
+        model
+
+    else
+        { model | previous = model.current, current = "" }
 
 
 
@@ -60,16 +71,23 @@ focus =
 view : Model -> Html Msg
 view model =
     let
-        value_ =
-            model.judgmentAmount
+        judgment =
+            if model.current == "" then
+                model.previous
 
-        fees =
-            value_
+            else
+                model.current
+
+        judgmentMoney =
+            judgment
                 |> String.replace "," ""
                 |> String.replace "$" ""
                 |> String.toFloat
                 |> Maybe.withDefault 0
                 |> Money.fromFloat
+
+        fees =
+            judgmentMoney
                 |> AttorneyFees.fromJudgmentAmount
     in
     div []
@@ -94,10 +112,11 @@ view model =
                             ]
                             [ input
                                 [ id "input"
+                                , type_ "number"
                                 , class Bu.input
                                 , onInput UpdatedJudgmentAmount
                                 , placeholder "Judgment amount"
-                                , value value_
+                                , value model.current
                                 ]
                                 []
                             , span [ class Bu.icon, class Bu.isSmall, class Bu.isLeft ]
@@ -106,15 +125,23 @@ view model =
                         , div [ class Bu.control ]
                             [ button [ class Bu.isLink, class Bu.button, onClick Clear ] [ text "Clear" ] ]
                         ]
-                    , if model.judgmentAmount == "" then
+                    , if model.current == "" then
                         p [ class Bu.isLink, class Bu.help ] [ text "Fees will update automatically" ]
 
                       else
-                        p [ class Bu.isLink, class Bu.help ] [ text "Press [Enter] to clear" ]
+                        p [ class Bu.isLink, class Bu.help ] [ text "Press [Enter/Return] to clear" ]
                     ]
                 ]
             , div [ class Bu.container ]
-                [ h2 [ class Bu.subtitle ] [ text ("Attorney fees = $" ++ Money.format fees) ]
+                [ h2 [ class Bu.subtitle ]
+                    [ text
+                        ("$"
+                            ++ Money.format judgmentMoney
+                            ++ " judgment = $"
+                            ++ Money.format fees
+                            ++ " fees."
+                        )
+                    ]
                 ]
             ]
         ]
