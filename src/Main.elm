@@ -71,8 +71,8 @@ view model =
                 |> AttorneyFees.fromJudgmentAmount
     in
     div []
-        [ h1 [] [ text "Local Rule 3190 Attorney Fees" ]
-        , p [] [ text "Superior Court of California, Riverside, Rev. 1-1-12" ]
+        [ h1 [] [ text "Default Judgment Attorney Fees" ]
+        , p [] [ text "Calculated per Riverside Superior Court Local Rule 3190 (Rev. 1-1-12)" ]
         , form [ onSubmit Clear ]
             [ span [] [ text "$ " ]
             , input [ id "input", onInput UpdatedJudgmentAmount, value value_ ] []
