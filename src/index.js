@@ -1,5 +1,5 @@
-import "bulma/css/bulma.css";
-import "@fortawesome/fontawesome-free/css/all.css";
+import "bulma/css/bulma.min.css";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 
 import { Elm } from "./Main.elm";
 import registerServiceWorker from "./registerServiceWorker";
