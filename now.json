@@ -1,6 +1,13 @@
 {
   "version": 2,
   "name": "attorney-fees",
+  "build": {
+    "env": {
+      "ELM_APP_EMAIL": "@elm-app-work-email",
+      "ELM_APP_NAME": "@elm-app-name"
+    }
+  },
+
   "builds": [
     {
       "src": "package.json",
