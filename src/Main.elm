@@ -13,7 +13,7 @@ import Html exposing (Html, a, button, div, form, h1, h2, input, label, p, secti
 import Html.Attributes exposing (class, href, id, placeholder, type_, value)
 import Html.Events exposing (onInput, onSubmit)
 import Interest
-import Rate exposing (Rate)
+import Rate
 import Task
 import Time
 
@@ -36,14 +36,6 @@ main =
 ---- MODEL ----
 
 
-type alias Flags =
-    { name : String, email : String, today : Int }
-
-
-type alias Config =
-    { name : String, email : String }
-
-
 type alias Model =
     { config : Config
     , data : Data
@@ -52,8 +44,16 @@ type alias Model =
 
 
 type Data
-    = Current Amount Interest Start End
-    | Cached Amount Interest Start End
+    = Current Amount Rate Start End
+    | Cached Amount Rate Start End
+
+
+type alias Flags =
+    { name : String, email : String, today : Int }
+
+
+type alias Config =
+    { name : String, email : String }
 
 
 type alias Amount =
@@ -61,6 +61,10 @@ type alias Amount =
 
 
 type alias Interest =
+    String
+
+
+type alias Rate =
     String
 
 
@@ -72,27 +76,21 @@ type alias End =
     String
 
 
-type alias ViewInputParams =
-    { toMsg : String -> Msg
-    , inputId : String
-    , inputValue : String
-    , inputPlaceholder : String
-    , inputLabel : String
-    }
-
-
-defaultInterest : String
-defaultInterest =
+defaultInterestRate : String
+defaultInterestRate =
     "10.0"
 
 
 init : Flags -> ( Model, Cmd Msg )
 init { name, email, today } =
     ( { config = { name = name, email = email }
-      , data = Current "" defaultInterest "" ""
+      , data = Current "" defaultInterestRate "" ""
       , today = Time.millisToPosix today |> Date.fromPosix Time.utc
       }
-    , Cmd.batch [ focus judgmentInputId, Date.today |> Task.perform ReceivedToday ]
+    , Cmd.batch
+        [ focus judgmentInputId
+        , updateToday
+        ]
     )
 
 
@@ -142,9 +140,12 @@ update msg model =
             ( updateEndDate model string, Cmd.none )
 
         ReceivedToday date_ ->
-            ( { model | today = date_ }
-            , Cmd.none
-            )
+            ( { model | today = date_ }, Cmd.none )
+
+
+updateToday : Cmd Msg
+updateToday =
+    Date.today |> Task.perform ReceivedToday
 
 
 updateJudgmentAmount : Model -> String -> Model
@@ -154,7 +155,7 @@ updateJudgmentAmount model string =
             { model | data = Current string (interest model) (start model) (end model) }
 
         Cached _ _ _ _ ->
-            { model | data = Current string "" "" "" }
+            { model | data = Current string defaultInterestRate "" "" }
 
 
 updateInterestRate : Model -> String -> Model
@@ -208,6 +209,16 @@ interestCalculation model =
                 |> Interest.format
 
 
+startText : Model -> String
+startText model =
+    case model.data of
+        Current _ _ _ _ ->
+            start model
+
+        Cached _ _ _ _ ->
+            ""
+
+
 start : Model -> Interest
 start model =
     case model.data of
@@ -216,6 +227,16 @@ start model =
 
         Cached _ _ s _ ->
             s
+
+
+endText : Model -> String
+endText model =
+    case model.data of
+        Current _ _ _ _ ->
+            end model
+
+        Cached _ _ _ _ ->
+            ""
 
 
 end : Model -> Interest
@@ -235,7 +256,7 @@ clear model =
             { model | data = Cached a i s e }
 
         Cached _ _ _ _ ->
-            { model | data = Current "" "" "" "" }
+            { model | data = Current "" defaultInterestRate "" "" }
 
 
 focus : String -> Cmd Msg
@@ -259,7 +280,7 @@ viewHero : Html msg
 viewHero =
     let
         h1Text =
-            "Default Judgment Attorney Fees"
+            "Default Judgment Attorney Fees and Interest"
 
         h2Text =
             "Calculated per Riverside Superior Court Local Rule 3190 (Rev. 1-1-12)"
@@ -315,6 +336,15 @@ viewFormBody model =
         ]
 
 
+type alias ViewInputParams =
+    { toMsg : String -> Msg
+    , inputId : String
+    , inputValue : String
+    , inputPlaceholder : String
+    , inputLabel : String
+    }
+
+
 viewJudgmentInput : Model -> Html Msg
 viewJudgmentInput model =
     let
@@ -350,8 +380,8 @@ viewInterestInput model =
                     ""
     in
     div []
-        [ viewDateInput (ViewInputParams UpdatedStartInput "start" (start model) ("e.g., " ++ Date.toIsoString model.today) "Interest start")
-        , viewDateInput (ViewInputParams UpdatedEndInput "end" (end model) ("e.g., " ++ Date.toIsoString model.today) "Interest end")
+        [ viewDateInput (ViewInputParams UpdatedStartInput "start" (startText model) ("e.g., " ++ Date.toIsoString model.today) "Interest start")
+        , viewDateInput (ViewInputParams UpdatedEndInput "end" (endText model) ("e.g., " ++ Date.toIsoString model.today) "Interest end")
         , viewPercentInput (ViewInputParams UpdatedInterestInput "rate" (interest model) "e.g., 10.0" "Interest rate")
         ]
 
@@ -464,6 +494,9 @@ viewCalculation : Model -> Html msg
 viewCalculation model =
     let
         fees =
+            AttorneyFees.fromJudgmentAmount (amount model) "0"
+
+        maxFees =
             AttorneyFees.fromJudgmentAmount (amount model) (interestCalculation model)
 
         size =
@@ -483,19 +516,18 @@ viewCalculation model =
                 , class Bu.is4Desktop
                 , class Bu.is3Widescreen
                 ]
-                [ rightP <| "$ " ++ Helpers.formatString (amount model)
-                , rightP <| "+ $ " ++ Helpers.formatString (interestCalculation model)
-                , rightP <| "= $ " ++ Helpers.formatString fees
+                [ div [ class Bu.hasTextWeightBold ] [ rightP <| "$ " ++ Helpers.formatString (amount model) ]
+                , rightP <| "$ " ++ Helpers.formatString (interestCalculation model)
+                , rightP <| "$ " ++ Helpers.formatString maxFees
+                , rightP <| "$ " ++ Helpers.formatString fees
                 ]
             , div
                 [ class Bu.column
-                , class Bu.is5Tablet
-                , class Bu.is4Desktop
-                , class Bu.is3Widescreen
                 ]
-                [ leftP "judgment"
-                , leftP "max interest"
-                , leftP "max fees"
+                [ div [ class Bu.hasTextWeightBold ] [ leftP "judgment" ]
+                , leftP "calculated interest"
+                , leftP "attorney fees (including interest)"
+                , leftP "attorney fees (not including interest)"
                 ]
             ]
         ]
