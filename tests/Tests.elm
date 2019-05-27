@@ -1,8 +1,10 @@
 module Tests exposing (all)
 
 import AttorneyFees
+import Decimal
 import Expect exposing (FloatingPointTolerance(..))
 import Fuzz exposing (..)
+import Interest
 import Test exposing (..)
 
 
@@ -124,5 +126,19 @@ all =
                         |> Expect.within
                             (Absolute 0.000000001)
                             (2275.0 + toFloat (dollars - 25000) * 0.02)
+            ]
+        , describe "Interest"
+            [ test "Daily factor = 0.002739726" <|
+                \_ ->
+                    Interest.dailyFactor
+                        |> Decimal.toFloat
+                        |> Expect.within
+                            (Absolute 0.0000000000000001)
+                            0.002739726
+            , test "Judgment interest" <|
+                \_ ->
+                    Interest.calculateFromStrings "38712.83" "12.74" "2017-08-27" "2018-11-07"
+                        |> Interest.toString
+                        |> Expect.equal "5904.91"
             ]
         ]
