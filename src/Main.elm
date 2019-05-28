@@ -187,6 +187,16 @@ amount model =
             a
 
 
+interestText : Model -> Interest
+interestText model =
+    case model.data of
+        Current _ i _ _ ->
+            i
+
+        Cached _ i _ _ ->
+            defaultInterestRate
+
+
 interest : Model -> Interest
 interest model =
     case model.data of
@@ -382,7 +392,7 @@ viewInterestInput model =
     div []
         [ viewDateInput (ViewInputParams UpdatedStartInput "start" (startText model) ("e.g., " ++ Date.toIsoString model.today) "Interest start")
         , viewDateInput (ViewInputParams UpdatedEndInput "end" (endText model) ("e.g., " ++ Date.toIsoString model.today) "Interest end")
-        , viewPercentInput (ViewInputParams UpdatedInterestInput "rate" (interest model) "e.g., 10.0" "Interest rate")
+        , viewPercentInput (ViewInputParams UpdatedInterestInput "rate" (interestText model) "e.g., 10.0" "Interest rate")
         ]
 
 
