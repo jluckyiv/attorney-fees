@@ -49,9 +49,6 @@ calculateJudgment amount =
     if Decimal.gt amount level4 then
         amount
             |> calculate level4 (Decimal.fromIntWithExponent 2 -2)
-            -- Adjust for math error in Local Rule 3190
-            -- Decimal.sub doesn't work because of order of operands
-            |> Decimal.add (Decimal.fromInt -100)
 
     else if Decimal.gt amount level3 then
         amount
