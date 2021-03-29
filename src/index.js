@@ -8,7 +8,8 @@ var app = Elm.Main.init({
   node: document.getElementById("root"),
   flags: {
     email: process.env.ELM_APP_EMAIL,
-    name: process.env.ELM_APP_NAME
+    name: process.env.ELM_APP_NAME,
+    today: Date.now()
   }
 });
 

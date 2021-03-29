@@ -4,13 +4,18 @@ import AttorneyFees
 import Browser
 import Browser.Dom as Dom
 import Bulma.Classes as Bu
+import Date exposing (Date)
 import FontAwesome as Fa
 import FormatNumber
 import FormatNumber.Locales exposing (usLocale)
+import Helpers
 import Html exposing (Html, a, button, div, form, h1, h2, input, label, p, section, span, text)
 import Html.Attributes exposing (class, href, id, placeholder, type_, value)
 import Html.Events exposing (onInput, onSubmit)
+import Interest
+import Rate
 import Task
+import Time
 
 
 
@@ -31,19 +36,24 @@ main =
 ---- MODEL ----
 
 
-type alias Flags =
-    { name : String, email : String }
-
-
 type alias Model =
-    { contact : Flags
+    { config : Config
     , data : Data
+    , today : Date
     }
 
 
 type Data
-    = Current Amount Interest
-    | Cached Amount Interest
+    = Current Amount Rate Start End
+    | Cached Amount Rate Start End
+
+
+type alias Flags =
+    { name : String, email : String, today : Int }
+
+
+type alias Config =
+    { name : String, email : String }
 
 
 type alias Amount =
@@ -54,18 +64,34 @@ type alias Interest =
     String
 
 
-type alias ViewInputParams =
-    { toMsg : String -> Msg
-    , inputId : String
-    , inputValue : String
-    , inputPlaceholder : String
-    , inputLabel : String
-    }
+type alias Rate =
+    String
+
+
+type alias Start =
+    String
+
+
+type alias End =
+    String
+
+
+defaultInterestRate : String
+defaultInterestRate =
+    "10.0"
 
 
 init : Flags -> ( Model, Cmd Msg )
-init flags =
-    ( { contact = flags, data = Current "" "" }, focus judgmentInputId )
+init { name, email, today } =
+    ( { config = { name = name, email = email }
+      , data = Current "" defaultInterestRate "" ""
+      , today = Time.millisToPosix today |> Date.fromPosix Time.utc
+      }
+    , Cmd.batch
+        [ focus judgmentInputId
+        , updateToday
+        ]
+    )
 
 
 judgmentInputId : String
@@ -87,6 +113,9 @@ type Msg
     | Clear
     | UpdatedJudgmentInput String
     | UpdatedInterestInput String
+    | UpdatedStartInput String
+    | UpdatedEndInput String
+    | ReceivedToday Date
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -102,22 +131,46 @@ update msg model =
             ( updateJudgmentAmount model string, Cmd.none )
 
         UpdatedInterestInput string ->
-            ( updateInterestAmount model string, Cmd.none )
+            ( updateInterestRate model string, Cmd.none )
+
+        UpdatedStartInput string ->
+            ( updateStartDate model string, Cmd.none )
+
+        UpdatedEndInput string ->
+            ( updateEndDate model string, Cmd.none )
+
+        ReceivedToday date_ ->
+            ( { model | today = date_ }, Cmd.none )
+
+
+updateToday : Cmd Msg
+updateToday =
+    Date.today |> Task.perform ReceivedToday
 
 
 updateJudgmentAmount : Model -> String -> Model
 updateJudgmentAmount model string =
     case model.data of
-        Current _ _ ->
-            { model | data = Current string (interest model) }
+        Current _ _ _ _ ->
+            { model | data = Current string (interest model) (start model) (end model) }
 
-        Cached _ _ ->
-            { model | data = Current string "" }
+        Cached _ _ _ _ ->
+            { model | data = Current string defaultInterestRate "" "" }
 
 
-updateInterestAmount : Model -> String -> Model
-updateInterestAmount model string =
-    { model | data = Current (amount model) string }
+updateInterestRate : Model -> String -> Model
+updateInterestRate model string =
+    { model | data = Current (amount model) string (start model) (end model) }
+
+
+updateStartDate : Model -> String -> Model
+updateStartDate model string =
+    { model | data = Current (amount model) (interest model) string (end model) }
+
+
+updateEndDate : Model -> String -> Model
+updateEndDate model string =
+    { model | data = Current (amount model) (interest model) (start model) string }
 
 
 
@@ -127,31 +180,93 @@ updateInterestAmount model string =
 amount : Model -> Amount
 amount model =
     case model.data of
-        Current a _ ->
+        Current a _ _ _ ->
             a
 
-        Cached a _ ->
+        Cached a _ _ _ ->
             a
+
+
+interestText : Model -> Interest
+interestText model =
+    case model.data of
+        Current _ i _ _ ->
+            i
+
+        Cached _ i _ _ ->
+            defaultInterestRate
 
 
 interest : Model -> Interest
 interest model =
     case model.data of
-        Current _ i ->
+        Current _ i _ _ ->
             i
 
-        Cached _ i ->
+        Cached _ i _ _ ->
             i
+
+
+interestCalculation : Model -> Interest
+interestCalculation model =
+    case model.data of
+        Current j i f t ->
+            Interest.calculateFromStrings j i f t
+                |> Interest.format
+
+        Cached j i f t ->
+            Interest.calculateFromStrings j i f t
+                |> Interest.format
+
+
+startText : Model -> String
+startText model =
+    case model.data of
+        Current _ _ _ _ ->
+            start model
+
+        Cached _ _ _ _ ->
+            ""
+
+
+start : Model -> Interest
+start model =
+    case model.data of
+        Current _ _ s _ ->
+            s
+
+        Cached _ _ s _ ->
+            s
+
+
+endText : Model -> String
+endText model =
+    case model.data of
+        Current _ _ _ _ ->
+            end model
+
+        Cached _ _ _ _ ->
+            ""
+
+
+end : Model -> Interest
+end model =
+    case model.data of
+        Current _ _ _ e ->
+            e
+
+        Cached _ _ _ e ->
+            e
 
 
 clear : Model -> Model
 clear model =
     case model.data of
-        Current a i ->
-            { model | data = Cached a i }
+        Current a i s e ->
+            { model | data = Cached a i s e }
 
-        Cached _ _ ->
-            { model | data = Current "" "" }
+        Cached _ _ _ _ ->
+            { model | data = Current "" defaultInterestRate "" "" }
 
 
 focus : String -> Cmd Msg
@@ -175,7 +290,7 @@ viewHero : Html msg
 viewHero =
     let
         h1Text =
-            "Default Judgment Attorney Fees"
+            "Default Judgment Attorney Fees and Interest"
 
         h2Text =
             "Calculated per Riverside Superior Court Local Rule 3190 (Rev. 1-1-12)"
@@ -231,15 +346,24 @@ viewFormBody model =
         ]
 
 
+type alias ViewInputParams =
+    { toMsg : String -> Msg
+    , inputId : String
+    , inputValue : String
+    , inputPlaceholder : String
+    , inputLabel : String
+    }
+
+
 viewJudgmentInput : Model -> Html Msg
 viewJudgmentInput model =
     let
         inputValue =
             case model.data of
-                Current a _ ->
+                Current a _ _ _ ->
                     a
 
-                Cached _ _ ->
+                Cached _ _ _ _ ->
                     ""
 
         inputLabel =
@@ -251,7 +375,7 @@ viewJudgmentInput model =
         toMsg =
             UpdatedJudgmentInput
     in
-    viewInput (ViewInputParams toMsg judgmentInputId inputValue inputPlaceholder inputLabel)
+    viewDollarInput (ViewInputParams toMsg judgmentInputId inputValue inputPlaceholder inputLabel)
 
 
 viewInterestInput : Model -> Html Msg
@@ -259,26 +383,21 @@ viewInterestInput model =
     let
         inputValue =
             case model.data of
-                Current _ i ->
+                Current _ i _ _ ->
                     i
 
-                Cached _ _ ->
+                Cached _ _ _ _ ->
                     ""
-
-        inputLabel =
-            "Interest"
-
-        inputPlaceholder =
-            "Interest amount"
-
-        toMsg =
-            UpdatedInterestInput
     in
-    viewInput (ViewInputParams toMsg interestInputId inputValue inputPlaceholder inputLabel)
+    div []
+        [ viewDateInput (ViewInputParams UpdatedStartInput "start" (startText model) ("e.g., " ++ Date.toIsoString model.today) "Interest start")
+        , viewDateInput (ViewInputParams UpdatedEndInput "end" (endText model) ("e.g., " ++ Date.toIsoString model.today) "Interest end")
+        , viewPercentInput (ViewInputParams UpdatedInterestInput "rate" (interestText model) "e.g., 10.0" "Interest rate")
+        ]
 
 
-viewInput : ViewInputParams -> Html Msg
-viewInput { toMsg, inputId, inputValue, inputPlaceholder, inputLabel } =
+viewDollarInput : ViewInputParams -> Html Msg
+viewDollarInput { toMsg, inputId, inputValue, inputPlaceholder, inputLabel } =
     let
         inputType =
             "text"
@@ -292,12 +411,66 @@ viewInput { toMsg, inputId, inputValue, inputPlaceholder, inputLabel } =
                 , placeholder inputPlaceholder
                 , value inputValue
                 , class Bu.input
+                , class Bu.hasTextRight
                 , onInput toMsg
                 ]
                 []
             , iconDollarSign
             ]
         ]
+
+
+viewPercentInput : ViewInputParams -> Html Msg
+viewPercentInput { toMsg, inputId, inputValue, inputPlaceholder, inputLabel } =
+    let
+        inputType =
+            "text"
+    in
+    div [ class Bu.field ]
+        [ label [ class Bu.label ] [ text inputLabel ]
+        , div [ class Bu.control, class Bu.hasIconsRight ]
+            [ input
+                [ id inputId
+                , type_ inputType
+                , placeholder inputPlaceholder
+                , value inputValue
+                , class Bu.input
+                , class Bu.hasTextRight
+                , onInput toMsg
+                ]
+                []
+            , iconPercent
+            ]
+        ]
+
+
+viewDateInput : ViewInputParams -> Html Msg
+viewDateInput { toMsg, inputId, inputValue, inputPlaceholder, inputLabel } =
+    let
+        inputType =
+            "text"
+    in
+    div [ class Bu.field ]
+        [ label [ class Bu.label ] [ text inputLabel ]
+        , div [ class Bu.control, class Bu.hasIconsRight ]
+            [ input
+                [ id inputId
+                , type_ inputType
+                , placeholder inputPlaceholder
+                , value inputValue
+                , class Bu.input
+                , class Bu.hasTextRight
+                , onInput toMsg
+                ]
+                []
+            ]
+        ]
+
+
+iconPercent : Html msg
+iconPercent =
+    span [ class Bu.icon, class Bu.isSmall, class Bu.isRight ]
+        [ Fa.icon Fa.percent ]
 
 
 iconDollarSign : Html msg
@@ -331,7 +504,10 @@ viewCalculation : Model -> Html msg
 viewCalculation model =
     let
         fees =
-            AttorneyFees.fromJudgmentAmount (amount model) (interest model)
+            AttorneyFees.fromJudgmentAmount (amount model) "0"
+
+        maxFees =
+            AttorneyFees.fromJudgmentAmount (amount model) (interestCalculation model)
 
         size =
             Bu.isSize4
@@ -350,19 +526,18 @@ viewCalculation model =
                 , class Bu.is4Desktop
                 , class Bu.is3Widescreen
                 ]
-                [ rightP <| "$ " ++ formatMoney (amount model)
-                , rightP <| "+ $ " ++ formatMoney (interest model)
-                , rightP <| "= $ " ++ formatMoney fees
+                [ div [ class Bu.hasTextWeightBold ] [ rightP <| "$ " ++ Helpers.formatString (amount model) ]
+                , rightP <| "$ " ++ Helpers.formatString (interestCalculation model)
+                , rightP <| "$ " ++ Helpers.formatString maxFees
+                , rightP <| "$ " ++ Helpers.formatString fees
                 ]
             , div
                 [ class Bu.column
-                , class Bu.is4Tablet
-                , class Bu.is3Desktop
-                , class Bu.is2Widescreen
                 ]
-                [ leftP "judgment"
-                , leftP "interest"
-                , leftP "fees"
+                [ div [ class Bu.hasTextWeightBold ] [ leftP "judgment" ]
+                , leftP "calculated interest"
+                , leftP "attorney fees (including interest)"
+                , leftP "attorney fees (not including interest)"
                 ]
             ]
         ]
@@ -372,7 +547,7 @@ viewSuggestions : Model -> Html msg
 viewSuggestions model =
     div [ class Bu.column ]
         [ span [] [ text "Email " ]
-        , a [ href <| "mailto:" ++ model.contact.email ] [ text model.contact.name ]
+        , a [ href <| "mailto:" ++ model.config.email ] [ text model.config.name ]
         , span [] [ text " with bugs or suggestions." ]
         ]
 
