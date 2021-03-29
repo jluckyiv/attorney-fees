@@ -293,7 +293,7 @@ viewHero =
             "Default Judgment Attorney Fees and Interest"
 
         h2Text =
-            "Calculated per Riverside Superior Court Local Rule 3190 (Rev. 1-1-12)"
+            "Calculated per Riverside Superior Court Local Rule 3190 (Effective 7-1-20)"
     in
     section [ class Bu.hero, class Bu.isInfo ]
         [ div [ class Bu.heroBody ]
